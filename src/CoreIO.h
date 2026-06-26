@@ -598,7 +598,7 @@ enum class TccOutput : uint8_t
 {
 #if SAME5x
 	// TCC devices on peripheral F
-	tcc0_0F = 0x00, tcc0_1F, tcc0_2F, tcc0_3F, tcc0_4F, tcc0_5F,
+	tcc0_0F = 0x00, tcc0_1F, tcc0_2F, tcc0_3F, tcc0_4F, tcc0_5F, tcc0_6F, tcc0_7F,
 	tcc1_0F = 0x08, tcc1_1F, tcc1_2F, tcc1_3F, tcc1_4F, tcc1_5F, tcc1_6F,
 	tcc2_0F = 0x10, tcc2_1F, tcc2_2F,
 	tcc3_0F = 0x18, tcc3_1F,
