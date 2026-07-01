@@ -64,3 +64,6 @@
 .cproject
 .cproject
 .cproject
+src/RP2040/pico-sdk
+.cproject
+src/RP2040/pico-sdk
