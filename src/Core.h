@@ -36,7 +36,6 @@
 # define SAME5x				1
 # define SAME70				0
 # define RP2040				0
-# define STM32				0
 #elif defined(__SAME51N19A__) || defined(__SAME51G19A__) || defined(__SAME51J19A__)
 # include <same51.h>
 # define SAMC21				0
@@ -46,7 +45,6 @@
 # define SAME5x				1
 # define SAME70				0
 # define RP2040				0
-# define STM32				0
 #elif defined(__SAMD51N19A__)
 # include <samd51.h>
 # define SAMC21				0
@@ -56,7 +54,6 @@
 # define SAME5x				1
 # define SAME70				0
 # define RP2040				0
-# define STM32				0
 #elif defined(__SAMC21G18A__)
 # include <samc21.h>
 # define SAMC21				1
@@ -66,7 +63,6 @@
 # define SAME5x				0
 # define SAME70				0
 # define RP2040				0
-# define STM32				0
 # define SUPPORT_SDHC		0			// SAMC21 doesn't support SDHC
 # define SUPPORT_USB		0			// SAMC21 doesn't support USB
 #elif defined(__SAM4E8E__)
@@ -74,21 +70,18 @@
 # include <sam4e8e.h>
 # define SAME5x				0
 # define RP2040				0
-# define STM32				0
 # define SUPPORT_CAN		0			// SAM4E doesn't support CAN-FD
 #elif defined(__SAM4S8C__)
 # include <parts.h>
 # include <sam4s8c.h>
 # define SAME5x				0
 # define RP2040				0
-# define STM32				0
 # define SUPPORT_CAN		0			// SAM4S doesn't support CAN-FD
 #elif defined(__SAME70Q20B__)
 # include <parts.h>
 # include <same70q20b.h>
 # define SAME5x				0
 # define RP2040				0
-# define STM32				0
 #elif defined __RP2040__
 extern "C" {
 # include <hardware/gpio.h>
@@ -103,13 +96,16 @@ extern "C" {
 # define SAM4S				0
 # define SAME5x				0
 # define SAME70				0
-# define STM32				0
 # define SUPPORT_SDHC		0			// SAMC21 doesn't support SDHC
 #else
 # error unsupported processor
 #endif
 
-#if SAME70 || RP2040 || SAME5x
+#define STM32				0			// this core doesn't support STM32 yet
+#define STM32H5				0
+#define STM32H7				0
+
+#if defined(RTOS) && (SAME70 || RP2040 || SAME5x)
 # define CORE_USES_TINYUSB		1
 #else
 # define CORE_USES_TINYUSB		0
@@ -126,13 +122,13 @@ static const uint32_t SystemCoreClockFreq = 120000000;	///< The processor clock 
 
 static const unsigned int GclkNum120MHz = 0;			// clock used by the CPU and high speed peripherals
 static const unsigned int GclkNum31KHz = 1;				// frequency is 31250Hz
-static const unsigned int GclkNumEthernetPhy = 2;		// reserved for RepRapFirmware to use for the Ethernet PHY clock on the Duet 3 Mini Ethernet
+static const unsigned int GclkNum25MHz = 2;				// reserved for crystal oscillator direct, used for the Ethernet PHY clock on the Duet 3 Mini Ethernet and on some tool boards. CAUTION: not 25MHz on older EXP3HC boards!
 static const unsigned int GclkNum60MHz = 3;				// clock used for lower speed peripherals
 static const unsigned int GclkNum48MHz = 4;				// clock used for step timer and CAN timing
-static const unsigned int GclkClosedLoop = 5;			// clock used on the closed loop boards as the clock for the TMC2160A driver (can be same as GclkSdhc because no board uses both clocks)
-static const unsigned int GclkNumPB11 = 5;				// clock used by the LDC1612 on TOOL1RR
+static const unsigned int GclkNumApp1 = 5;				// clock used for the TMC2160A driver on closed loop boards, or as the LDC1612 clock
 static const unsigned int GclkNum1MHz = 6;				// clock used for EIC deglitching
-static const unsigned int GclkNum96MHz = 7;				// 96MHz used for SERCOMs and possibly SDHC
+static const unsigned int GclkNumApp2 = 7;				// clock used by the LDC1612 on TOOL1RR, or the TMC driver clock
+static const unsigned int GclkNum96MHz = 8;				// 96MHz used for SERCOMs, and for SDHC on Duet 3 Mini
 
 // SDHC clock support (in configurations that support it)
 // We have two possible clock sources for SDHC:

@@ -17,22 +17,22 @@
 */
 
 #include "AsyncSerial.h"
+#include "Serial.h"
 #include <CoreNotifyIndices.h>
 #include <asf.h>
 
 #include <cstdlib>
 #include <cstring>
-#include <algorithm>		// for std::swap
+#include <utility>		// for std::swap
 
 // Constructors ////////////////////////////////////////////////////////////////
 
-AsyncSerial::AsyncSerial(Uart* pUart, IRQn_Type p_irqn, uint32_t p_id, size_t numTxSlots, size_t numRxSlots, OnBeginFn p_onBegin, OnEndFn p_onEnd) noexcept
-	: _pUart(pUart), irqn(p_irqn), id(p_id),
-	  interruptCallback(nullptr), onBegin(p_onBegin), onEnd(p_onEnd), onTransmissionEndedFn(nullptr),
-	  numInterruptBytesMatched(0), txEnabled(false)
+AsyncSerial::AsyncSerial(const UartParameters& params) noexcept
+	: _pUart(Serial::GetUartOrUsart(params.uartOrUsartInstance)), id(Serial::GetUartOrUsartId(params.uartOrUsartInstance)),
+	  uartOrUsartInstance(params.uartOrUsartInstance), rxPin(params.rxPin), txPin(params.txPin), pinFunction(params.pinFunction)
 {
-	txBuffer.Init(numTxSlots);
-	rxBuffer.Init(numRxSlots);
+	txBuffer.Init(params.numTxSlots);
+	rxBuffer.Init(params.numRxSlots);
 }
 
 // Public Methods //////////////////////////////////////////////////////////////
@@ -44,15 +44,19 @@ void AsyncSerial::begin(uint32_t dwBaudRate) noexcept
 
 void AsyncSerial::begin(uint32_t dwBaudRate, UARTModes config) noexcept
 {
-	uint32_t modeReg = static_cast<uint32_t>(config) & 0x00000E00;
-	init(dwBaudRate, modeReg | UART_MR_CHMODE_NORMAL);
+	const uint32_t configReg = static_cast<uint32_t>(config);
+	const uint32_t modeReg = (uartOrUsartInstance & 0x80) != 0
+		? ((configReg & (US_MR_CHRL_Msk | US_MR_PAR_Msk | US_MR_NBSTOP_Msk)) | US_MR_USART_MODE_NORMAL | US_MR_USCLKS_MCK | US_MR_CHMODE_NORMAL)
+		: ((configReg & UART_MR_PAR_Msk) | UART_MR_CHMODE_NORMAL);
+	init(dwBaudRate, modeReg);
 }
 
 void AsyncSerial::init(const uint32_t dwBaudRate, const uint32_t modeReg) noexcept
 {
 	// Configure PMC
 	pmc_enable_periph_clk(id);
-	onBegin(this);
+	SetPinFunction(rxPin, pinFunction);
+	SetPinFunction(txPin, pinFunction);
 
 #if !SAME70
 	// Disable PDC channel
@@ -75,11 +79,12 @@ void AsyncSerial::init(const uint32_t dwBaudRate, const uint32_t modeReg) noexce
 	bufferOverrunPending = false;
 
 	// Configure interrupts
-	_pUart->UART_IDR = 0xFFFFFFFF;
+	Serial::SetUartOrUsartVector(uartOrUsartInstance, GlobalIrqHandler, this);
+	_pUart->UART_IDR = 0xFFFFFFFFu;
 	_pUart->UART_IER = UART_IER_RXRDY | UART_IER_OVRE | UART_IER_FRAME;
 
 	// Enable UART interrupt in NVIC
-	NVIC_EnableIRQ(irqn);
+	NVIC_EnableIRQ((IRQn_Type)id);
 
 	// Enable receiver and transmitter
 	errors.all = 0;
@@ -97,19 +102,22 @@ void AsyncSerial::end( void ) noexcept
 	txEnabled = false;
 
 	// Disable UART interrupt in NVIC
-	NVIC_DisableIRQ(irqn);
+	NVIC_DisableIRQ((IRQn_Type)id);
+	Serial::ReleaseUartOrUsartVector(uartOrUsartInstance);
 
+	ClearPinFunction(rxPin);
+	ClearPinFunction(txPin);
 	pmc_disable_periph_clk(id);
 }
 
 void AsyncSerial::setInterruptPriority(uint32_t priority) noexcept
 {
-	NVIC_SetPriority(irqn, priority & 0x0F);
+	NVIC_SetPriority((IRQn_Type)id, priority & 0x0F);
 }
 
 uint32_t AsyncSerial::getInterruptPriority() noexcept
 {
-	return NVIC_GetPriority(irqn);
+	return NVIC_GetPriority((IRQn_Type)id);
 }
 
 int AsyncSerial::available() noexcept
@@ -125,7 +133,7 @@ size_t AsyncSerial::canWrite() noexcept
 int AsyncSerial::read() noexcept
 {
 	uint8_t c;
-	return (rxBuffer.GetItem(c)) ? c : -1;
+	return (rxBuffer.GetItem(c)) ? (int)c : -1;
 }
 
 void AsyncSerial::flush( void ) noexcept
@@ -170,7 +178,7 @@ size_t AsyncSerial::write(uint8_t uc_data) noexcept
 }
 
 // Write block, blocking if transmitter is enabled
-size_t AsyncSerial::write(const uint8_t *buffer, size_t buflen) noexcept
+size_t AsyncSerial::write(const uint8_t *_ecv_array buffer, size_t buflen) noexcept
 {
 	size_t ret = 0;
 	for (;;)
@@ -225,7 +233,7 @@ void AsyncSerial::EnableTransmit() noexcept
 	_pUart->UART_IER = UART_IER_TXRDY;
 }
 
-void AsyncSerial::IrqHandler() noexcept
+inline void AsyncSerial::IrqHandler() noexcept
 {
 	const uint32_t status = _pUart->UART_SR;
 
@@ -308,17 +316,22 @@ void AsyncSerial::IrqHandler() noexcept
 	// Acknowledge errors
 	if ((status & (UART_SR_OVRE | UART_SR_FRAME)) != 0)
 	{
-		if (status & UART_SR_OVRE)
+		if ((status & UART_SR_OVRE) != 0)
 		{
 			++errors.uartOverrun;
 		}
-		if (status & UART_SR_FRAME)
+		if ((status & UART_SR_FRAME) != 0)
 		{
 			++errors.framing;
 		}
 		_pUart->UART_CR = UART_CR_RSTSTA;
 		rxBuffer.PutItem(0x7F);
 	}
+}
+
+/*static*/ void AsyncSerial::GlobalIrqHandler(void *device) noexcept
+{
+	((AsyncSerial*)device)->IrqHandler();
 }
 
 AsyncSerial::InterruptCallbackFn _ecv_null AsyncSerial::SetInterruptCallback(InterruptCallbackFn _ecv_null f) noexcept
