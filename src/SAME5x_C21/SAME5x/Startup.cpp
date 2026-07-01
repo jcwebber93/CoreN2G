@@ -115,7 +115,7 @@ extern "C" [[noreturn]] void Reset_Handler() noexcept
 // DPLL0 120MHz locked to XOSCn
 // DPLL1 96MHz locked to XOSCn
 // DFLL48M no longer used because it has high jitter
-// GCLK0 120MHz from DPLL0, for CPU and fast peripherals
+// GCLK0 120MHz from DPLL0, for CPU and fast peripherals	
 // GCLK1 XOSCn divided by (32 * XOSCn_frequency_MHz) to give 31250Hz for SERCOM slow clock
 // GCLK2 XOSCn direct, used by Ethernet PHY on Duet 3 Mini
 // GCLK3: DPLL0 divided by 2, 60MHz for peripherals that need slower than 120MHz
@@ -161,11 +161,11 @@ static void InitClocks() noexcept
 		// We have one EXP3HC board with a 12MHz crystal for which OSCCTRL_XOSCCTRL_STARTUP(5) does not give enough time for the oscillator to stabilise
 		hri_oscctrl_write_XOSCCTRL_reg(OSCCTRL, xoscNumber,
 				  OSCCTRL_XOSCCTRL_CFDPRESC(3)
-				| OSCCTRL_XOSCCTRL_STARTUP(6)						// 6 gives about 2ms startup time to let the oscillators stabilize (required by bootloader)
+				| OSCCTRL_XOSCCTRL_STARTUP(0xF)						// 0xA = ~31ms startup time, generous margin for any layout
 				| (0 << OSCCTRL_XOSCCTRL_SWBEN_Pos)
 				| (0 << OSCCTRL_XOSCCTRL_CFDEN_Pos)
 				| (0 << OSCCTRL_XOSCCTRL_ENALC_Pos)
-				| OSCCTRL_XOSCCTRL_IMULT(6)
+				| OSCCTRL_XOSCCTRL_IMULT(7)
 				| OSCCTRL_XOSCCTRL_IPTAT(3)
 				| (0 << OSCCTRL_XOSCCTRL_LOWBUFGAIN_Pos)
 				| (0 << OSCCTRL_XOSCCTRL_ONDEMAND_Pos)
