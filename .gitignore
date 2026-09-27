@@ -65,3 +65,4 @@
 /STM32H7_CAN_RTOS/
 /.clangd
 /.clang-format
+.cproject
