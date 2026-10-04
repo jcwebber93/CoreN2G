@@ -11,7 +11,7 @@
 #include <CoreIO.h>
 #include "I2cParameters.h"
 
-#ifdef RTOS					// we dn't support I2C in non-RTOS builds
+#ifdef RTOS					// we don't support I2C in non-RTOS builds
 
 #include <RTOSIface/RTOSIface.h>
 #if SAME5x || SAMC21
@@ -46,6 +46,10 @@ public:
 		errors.Clear();
 	}
 
+#if SAME70
+	void Interrupt() noexcept;
+#endif
+
 private:
 	enum class I2cState : uint8_t
 	{
@@ -56,20 +60,28 @@ private:
 	void Disable() const noexcept;
 	void RecoverBus() noexcept;
 	bool InternalTransfer(uint16_t address, const uint8_t *_ecv_array txBuffer, uint8_t *_ecv_array rxBuffer, size_t numToWrite, size_t numToRead) noexcept;
-	void ProtocolError()  noexcept;
 
-#if SAME5x || SAMC21
-	static void CommonInterrupt(void *param) noexcept;
-	void Interrupt() noexcept;
-	void StartReading(uint32_t addressToSend) noexcept;
-	static void RxDmaCompleteCallback(CallbackParameter cp, DmaCallbackReason reason) noexcept;
-	void RxDmaComplete(DmaCallbackReason reason) noexcept;
-
-	Sercom * const hardware;
 	const Pin sclPin, sdaPin;
 	const GpioPinFunction pinFunction;
 	const DmaChannel rxDmaChannel;
 	const DmaPriority rxDmaPriority;
+
+#if SAME5x || SAMC21
+	Sercom *const hardware;
+
+	static void CommonInterrupt(void *param) noexcept;
+	static void RxDmaCompleteCallback(CallbackParameter cp, DmaCallbackReason reason) noexcept;
+	void Interrupt() noexcept;
+	void StartReading(uint32_t addressToSend) noexcept;
+	void RxDmaComplete(DmaCallbackReason reason) noexcept;
+	void ProtocolError()  noexcept;
+#elif SAME70
+	Twihs *const hardware;
+
+	bool WaitForStatus(uint32_t statusBit, unsigned int& timeoutErrorCounter) noexcept;
+	bool WaitTransferComplete() noexcept;
+	bool WaitByteSent() noexcept;
+	bool WaitByteReceived() noexcept;
 #endif
 
 	TaskHandle taskWaiting;

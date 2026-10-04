@@ -26,7 +26,7 @@ extern uint32_t _estack;
 extern uint32_t __StackLimit;							// defined by the linker script (poorly named, see linker script)
 extern uint32_t __StackBottom;
 
-const char *sysStackLimit = (const char*)&__StackBottom;
+const uint32_t sysStackLimit = (uint32_t)&__StackBottom;
 const char *heapLimit = (const char*)&__StackLimit;
 
 #else
@@ -35,7 +35,7 @@ const char *heapLimit = (const char*)&__StackLimit;
 # define SystemStackSize	(1024)
 #endif
 
-const char *_ecv_array sysStackLimit = (const char *_ecv_array)&_estack - SystemStackSize;
+const uint32_t sysStackLimit = (uint32_t)&_estack - SystemStackSize;		// this must be const so allocated in ROM for Cortex M33
 const char *_ecv_array heapLimit = (const char *_ecv_array)&_estack - SystemStackSize;
 
 #endif
@@ -120,12 +120,14 @@ extern "C" [[noreturn]] void _exit(int status) noexcept
 	for (;;) { }
 }
 
-extern "C" void exit(int code) noexcept
+// No 'noexcept' on these two: <stdlib.h> declares them without one, and while GCC tolerates a
+// redeclaration that adds it, clang (and therefore clang-tidy) rejects it as a hard error.
+extern "C" void exit(int code)
 {
 	_exit(code);
 }
 
-extern "C" void abort() noexcept
+extern "C" void abort()
 {
 	_exit(1);
 }
